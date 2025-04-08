@@ -1,54 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mein Voice Agent</title>
+    <title>Mein Support Agent</title>
     <style>
         #voice-agent {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 300px;
-            height: 400px;
-            background: #f0f0f0;
+            width: 350px;
+            height: 450px;
+            background: #f5f5f5;
             border-radius: 15px;
             padding: 20px;
             box-shadow: 0 0 20px rgba(0,0,0,0.2);
             text-align: center;
+            font-family: Arial, sans-serif;
         }
         #response {
             height: 70%;
             overflow-y: auto;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
             border: 1px solid #ddd;
             padding: 10px;
             background: white;
+            border-radius: 8px;
+            text-align: left;
         }
         button {
             background: #4CAF50;
             color: white;
             border: none;
-            padding: 10px;
+            padding: 12px 20px;
             border-radius: 5px;
             cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #45a049;
         }
     </style>
 </head>
 <body>
     <div id="voice-agent">
-        <h2>Mein AI-Assistent</h2>
-        <div id="response">Drücken Sie "Sprechen" und fragen Sie mich etwas!</div>
+        <h2>Mein Support Agent</h2>
+        <div id="response">Klicken Sie auf "Sprechen" und stellen Sie Ihre Frage.</div>
         <button id="startButton">🎤 Sprechen</button>
     </div>
 
     <script>
-        // HIER API-KEY UND VOICE-ID EINTRAGEN!
-        const API_KEY = "sk_e66445a67349383a8bb0762bff27f63012b1253a7a8f6ae6";  // Ersetzen Sie dies mit Ihrem ElevenLabs-Key!
-        const VOICE_ID = "kqVT88a5QfII1HNAEPTJ";  // Ersetzen Sie dies mit Ihrer Voice-ID!
+        // ELEVENLABS-DATEN EINTRAGEN
+        const API_KEY = "sk_e66445a67349383a8bb0762bff27f63012b1253a7a8f6ae6";  // Ihr ElevenLabs-API-Key
+        const VOICE_ID = "kqVT88a5QfII1HNAEPTJ";  // Die Stimme-ID
+        const AGENT_ID = "EacQrJKXcHIe8BWKVc8k";  // Die Agent-ID (aus dem Dashboard)
 
         const startButton = document.getElementById("startButton");
         const responseDiv = document.getElementById("response");
 
+        // Spracherkennung starten
         startButton.addEventListener("click", async () => {
             try {
                 responseDiv.textContent = "Höre zu...";
@@ -56,10 +65,15 @@
                 recognition.lang = "de-DE";
 
                 recognition.onresult = async (event) => {
-                    const spokenText = event.results[0][0].transcript;
-                    responseDiv.textContent = "Sie: " + spokenText;
-                    const reply = await fetchElevenLabsVoice(spokenText);
-                    responseDiv.innerHTML += "<br>AI: " + reply;
+                    const userText = event.results[0][0].transcript;
+                    responseDiv.textContent = "Sie: " + userText;
+
+                    // 1. Frage an den ElevenLabs Agent senden (KI-Antwort holen)
+                    const agentResponse = await fetchAgentResponse(userText);
+                    responseDiv.innerHTML += "<br>Agent: " + agentResponse;
+
+                    // 2. Antwort als Stimme abspielen
+                    await playElevenLabsVoice(agentResponse);
                 };
 
                 recognition.start();
@@ -68,7 +82,29 @@
             }
         });
 
-        async function fetchElevenLabsVoice(text) {
+        // ElevenLabs Agent nach einer Antwort fragen
+        async function fetchAgentResponse(text) {
+            try {
+                const response = await fetch(`https://api.elevenlabs.io/v1/agents/${AGENT_ID}/query`, {
+                    method: "POST",
+                    headers: {
+                        "xi-api-key": API_KEY,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        query: text,
+                    })
+                });
+
+                const data = await response.json();
+                return data.response;  // Die KI-Antwort des Agents
+            } catch (error) {
+                return "Entschuldigung, ich konnte keine Antwort erhalten.";
+            }
+        }
+
+        // ElevenLabs TTS (Text-to-Speech)
+        async function playElevenLabsVoice(text) {
             try {
                 const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`, {
                     method: "POST",
@@ -86,9 +122,8 @@
                 const audioUrl = URL.createObjectURL(audioBlob);
                 const audio = new Audio(audioUrl);
                 audio.play();
-                return "Antwort wird abgespielt...";
             } catch (error) {
-                return "Fehler: " + error.message;
+                console.error("Fehler bei TTS:", error);
             }
         }
     </script>
